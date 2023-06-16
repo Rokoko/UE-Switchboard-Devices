@@ -2,6 +2,8 @@
 
 UE Switchboard is a Python tool that comes with Unreal Engine. It is primarily used for nDisplay synchronization, but it can also be used for synchronized recording across different devices from manufacturers such as Vicon, xSens, and Optitrack. Additionally, it can be used for recording UE scenes or live-action facial captures.
 
+![ue switchboard with devices](https://github.com/Rokoko/UE-Switchboard-Devices/blob/main/images/image.png)
+
 Rokoko Device has two implementations:
 - Trigger messages device - this is a production ready, low latency, industry aligned way of doing a synced recording
 - Command API Device - this is a way based on http post requests, compatible with Studio Legacy

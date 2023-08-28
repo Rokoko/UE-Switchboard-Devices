@@ -18,12 +18,22 @@ Video - https://drive.google.com/file/d/1lWspsHGplYHJ3_2MyrYa8TdDLNpkFnzL/view?u
 
 ## How to Install
 
-### Rokoko Device
-put device folder into devices folder, my path for that is C:\Program Files\Epic Games\UE_5.1\Engine\Plugins\VirtualProduction\Switchboard\Source\Switchboard\switchboard\devices
+1 - Make a new UE project from template "Virtual Production / nDisplay". When Editor started, you should have a new button in the main toolbar to run the switchboard. First click on it will launch the installation process.
 
-### OBS Device
-1 - put obs folder into devices https://drive.google.com/file/d/1SkIdi4BZRiVvZt_tHLAzMY1vjof8PPLh/view?usp=share_link
+Then close the switch board window.
 
-my path for devices - C:\Program Files\Epic Games\UE_5.1\Engine\Plugins\VirtualProduction\Switchboard\Source\Switchboard\switchboard\devices
+2 - Put devices script folders (rokoko and obs) into devices folder, that have to be located on your UE installation path
+For instance, C:\Program Files\Epic Games\UE_5.1\Engine\Plugins\VirtualProduction\Switchboard\Source\Switchboard\switchboard\devices
 
-2 - add simpleobsws and websockets libraries into switchboard python site-packages - C:\Program Files\Epic Games\UE_5.1\Engine\Extras\ThirdPartyNotUE\SwitchboardThirdParty\Python\Lib\site-packages
+2 - Locate the SwitchboardThirdParty folder in your installed UE
+For instance, C:\Program Files\Epic Games\UE_5.1\Engine\Extras\ThirdPartyNotUE\SwitchboardThirdParty
+
+In the folder you should modify requirements.txt and add there 2 lines
+```
+simpleobsws>=v1.0.0
+websockets==10.4
+```
+
+3 - remove the sub-folder Scripts inside the SwitchboardThirdParty\Python
+
+4 - launch the switchboard again from UE or from installed shortcut. New required libraries have to be added and new Rokoko and OBS devices should be able to start.

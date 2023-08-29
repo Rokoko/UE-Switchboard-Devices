@@ -30,8 +30,7 @@ For instance, C:\Program Files\Epic Games\UE_5.1\Engine\Extras\ThirdPartyNotUE\S
 
 In the folder you should modify requirements.txt and add there 2 lines
 ```
-simpleobsws>=v1.0.0
-websockets==10.4
+simpleobsws==1.3.1
 ```
 
 3 - remove the sub-folder Scripts inside the SwitchboardThirdParty\Python

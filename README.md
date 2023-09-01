@@ -5,8 +5,8 @@ UE Switchboard is a Python tool that comes with Unreal Engine. It is primarily u
 ![ue switchboard with devices](https://github.com/Rokoko/UE-Switchboard-Devices/blob/main/images/image.png)
 
 Rokoko Device has two implementations:
-- Trigger messages device - this is a production ready, low latency, industry aligned way of doing a synced recording
-- Command API Device - this is a way based on http post requests, compatible with Studio Legacy
+- Trigger messages device (Rokoko Pro) - this is a production ready, low latency, industry aligned way of doing a synced recording. It require to have a pro subscription in Rokoko Studio
+- Command API Device (Rokoko) - this is a way based on http post requests, compatible with Studio Legacy. It require to have a plus subscription
   
 The OBS device that could be useful if you want to make a recording of audio and video references.
 

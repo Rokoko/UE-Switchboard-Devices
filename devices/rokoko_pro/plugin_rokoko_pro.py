@@ -1,15 +1,12 @@
-# UE Switchboard device based on Command API, Plus feature, http post request
+# UE Switchboard device based on Trigger Messages, Pro feature, low latency
 # Rokoko, 2023
 
 from collections import deque
 import datetime
 import select
 import socket
-import struct
 from threading import Thread
 import time
-import requests
-import json
 
 from switchboard.config import IntSetting, BoolSetting
 from switchboard.devices.device_base import Device, DeviceStatus
@@ -18,16 +15,16 @@ from switchboard.switchboard_logging import LOGGER
 import switchboard.switchboard_utils as utils
 
 
-class DeviceRokoko(Device):
+class DeviceRokokoPro(Device):
     
-    setting_rokoko_port = IntSetting(
-        "rokoko_port", "Rokoko Command Port", 14053)
+    RECORDING_START_CMD_NAME = "CaptureStart"
+    RECORDING_STOP_CMD_NAME = "CaptureStop"
 
-    setting_rokoko_key = IntSetting(
-        "rokoko_key", "Rokoko API Key", 1234)
+    setting_rokoko_pro_port = IntSetting(
+        "rokoko_pro_port", "Rokoko Trigger Messages Port", 14047)
 
-    setting_rokoko_backToLive = BoolSetting(
-        "rokoko_backToLive", "Rokoko Back To Live", True)
+    setting_rokoko_pro_enter_clip_editing = BoolSetting(
+        "rokoko_pro_enter_clip_editing", "Rokoko Pro Enter Clip Editing", False)
 
     def __init__(self, name, address, **kwargs):
         super().__init__(name, address, **kwargs)
@@ -35,36 +32,38 @@ class DeviceRokoko(Device):
         self.trigger_start = True
         self.trigger_stop = True
 
-        self.client = None
-
         self._slate = 'slate'
         self._take = 1
 
         # Stores pairs of (queued message, command name).
         self.message_queue = deque()
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # UDP
 
         self.response_status = 1
         self.last_activity = datetime.datetime.now()
         self.awaiting_echo_response = False
         self.command_response_callbacks = {
             "info": self.on_rokoko_echo_response,
-            "recording/start": self.on_rokoko_recording_started,
-            "recording/stop": self.on_rokoko_recording_stopped}
+            DeviceRokokoPro.RECORDING_START_CMD_NAME: self.on_rokoko_recording_started,
+            DeviceRokokoPro.RECORDING_STOP_CMD_NAME: self.on_rokoko_recording_stopped}
         self.rokoko_connection_thread = None
         
     @staticmethod
     def plugin_settings():
-        return Device.plugin_settings() + [DeviceRokoko.setting_rokoko_port, DeviceRokoko.setting_rokoko_key, DeviceRokoko.setting_rokoko_backToLive]
+        return Device.plugin_settings() + [DeviceRokokoPro.setting_rokoko_pro_port, DeviceRokokoPro.setting_rokoko_pro_enter_clip_editing]
 
     def send_request_to_rokoko(self, request):
         """ Sends a request message to Rokoko's command port. """
-        data = {
-          'filename': f"{self._slate} {self._take}",
-          'time' : self.timecode(),
-          'frame_rate' : self.framerate(),
-          'back_to_live' : self.setting_rokoko_backToLive.get_value()
+        
+        args = {
+            'command_name' : request,
+            'timecode' : self.timecode(),
+            'frame_rate' : self.framerate(), 
+            'recording_name' : f"{self._slate} {self._take}",
+            'enter_clip_editing' : self.setting_rokoko_pro_enter_clip_editing.get_value(),
         }
-        self.message_queue.appendleft((data, request))
+
+        self.message_queue.appendleft((args, request))
 
     def send_echo_request(self):
         """
@@ -77,13 +76,8 @@ class DeviceRokoko(Device):
         if len(self.message_queue) > 0:
             return
 
-        self.awaiting_echo_response = True
-
-        data = {
-            'devices_info': False,
-            'clips_info': False
-        }
-        self.message_queue.appendleft((data, "info"))
+        self.last_activity = datetime.datetime.now()
+        self.awaiting_echo_response = False
 
     def on_rokoko_echo_response(self, response):
         """
@@ -99,13 +93,12 @@ class DeviceRokoko(Device):
         """ Start thread with a Rokoko's message queue """
         
         self.last_activity = datetime.datetime.now()
-
-        self.awaiting_echo_response = False
-        self.message_queue = deque()
         self.response_status = 1
+
         self.rokoko_connection_thread = Thread(target=self.rokoko_connection)
         self.rokoko_connection_thread.start()
 
+        self.awaiting_echo_response = False
         self.send_echo_request()
         self.status = DeviceStatus.READY
 
@@ -125,15 +118,19 @@ class DeviceRokoko(Device):
 
                 if len(self.message_queue):
                     message_dict, cmd_name = self.message_queue.pop()
-                    LOGGER.warning(cmd_name)
-                    LOGGER.warning(message_dict)
-                    response = requests.post(f"http://{self.address}:{self.setting_rokoko_port.get_value()}/v1/{self.setting_rokoko_key.get_value()}/{cmd_name}",
-                        json.dumps(message_dict, indent = 2)
-                    )
 
-                    if response is not None:
-                        self.response_status = 200
-                        self.process_message(response, cmd_name)
+                    MESSAGE = "<{command_name}>" \
+                        "<TimeCode VALUE=\"{timecode}\"/>" \
+                        "<FrameRate VALUE=\"{frame_rate}\"/>" \
+                        "<Name VALUE=\"{recording_name}\"/>" \
+                        "<SetActiveClip VALUE=\"{enter_clip_editing}\"/>" \
+                        "<ProcessID VALUE=\"12345\"/>" \
+                        "</{command_name}>".format(**message_dict)
+
+                    self.sock.sendto(bytes(MESSAGE, "utf-8"), (self.address, self.setting_rokoko_pro_port.get_value()))
+
+                    self.response_status = 200
+                    self.process_message("", cmd_name)
 
                 else:
                     time.sleep(0.01)
@@ -189,7 +186,7 @@ class DeviceRokoko(Device):
         self.set_slate(slate)
         self.set_take(take)
 
-        self.send_request_to_rokoko('recording/start')
+        self.send_request_to_rokoko(DeviceRokokoPro.RECORDING_START_CMD_NAME)
 
     def on_rokoko_recording_started(self, response):
         """ Callback that is exectued when Rokoko has started recording. """
@@ -203,7 +200,7 @@ class DeviceRokoko(Device):
         if self.is_disconnected or not self.trigger_stop:
             return
 
-        self.send_request_to_rokoko('recording/stop')
+        self.send_request_to_rokoko(DeviceRokokoPro.RECORDING_STOP_CMD_NAME)
 
     def on_rokoko_recording_stopped(self, response):
         """ Callback that is exectued when Rokoko has stopped recording. """
@@ -216,7 +213,7 @@ class DeviceRokoko(Device):
         return '30'
 
 
-class DeviceWidgetRokoko(DeviceWidget):
+class DeviceWidgetRokokoPro(DeviceWidget):
     def __init__(self, name, device_hash, address, icons, parent=None):
         super().__init__(name, device_hash, address, icons, parent=parent)
 
